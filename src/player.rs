@@ -10,6 +10,9 @@ pub struct Player {
     pub stamina: i32,
 }
 
+pub type Team = Vec<Player>;
+
+pub type ListOfPlayers = Vec<Player>;
 
 impl std::fmt::Display for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -58,7 +61,7 @@ impl std::fmt::Display for Criteria {
     }
 }
 
-pub fn rate_average(time: &[Player], position: &Criteria) -> f32 {
+pub fn rate_average(time: &Team, position: &Criteria) -> f32 {
     let soma_qualidade : i32 = match position {
         Criteria::Keeper => time.iter().filter(|a| a.qualidade_goleiro > 0).map(|j| j.qualidade_goleiro).sum(),
         Criteria::Defender => time.iter().filter(|a| a.qualidade_zagueiro > 0).map(|j| j.qualidade_zagueiro).sum(),
@@ -70,7 +73,7 @@ pub fn rate_average(time: &[Player], position: &Criteria) -> f32 {
     soma_qualidade as f32 / time.len() as f32
 }
 
-pub fn rate_max(team: &[Player], position: &Criteria) -> i32 {
+pub fn rate_max(team: &Team, position: &Criteria) -> i32 {
     match position {
         Criteria::Keeper => team.iter().map(|j| j.qualidade_goleiro).max().unwrap_or(0),
         Criteria::Defender => team.iter().map(|j| j.qualidade_zagueiro).max().unwrap_or(0),
@@ -85,13 +88,13 @@ pub fn media_qualidade_jogador(jogador: &Player) -> f32 {
     (jogador.qualidade_goleiro+jogador.qualidade_zagueiro+jogador.qualidade_meio+jogador.qualidade_atacante+jogador.speed+jogador.stamina) as f32/6.0
 }
 
-pub fn media_do_jogadores(time: &[Player]) -> f32 {
+pub fn media_do_jogadores(time: &Team) -> f32 {
     time.iter().map(media_qualidade_jogador).sum::<f32>() / time.len() as f32
 }
 
 
 // Função para calcular a diferença total entre as somas das qualidades dos três times em todas as posições
-pub fn total_diference(times: &Vec<Vec<Player>>) -> f32 {
+pub fn total_diference(times: &Vec<Team>) -> f32 {
     let positions = vec![
         Criteria::Keeper,
         Criteria::Defender,
