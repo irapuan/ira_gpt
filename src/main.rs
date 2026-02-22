@@ -1,32 +1,32 @@
+use IraGpt::app_error::AppError;
+use IraGpt::player::{self, Player};
 use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use good_lp::*;
 use is_terminal::IsTerminal;
 use std::fs;
 use std::io::{self, Read};
-mod player;
-use player::Player;
 
-fn load_players(filename: &str) -> Vec<Player> {
-    if let Ok(data) = fs::read_to_string(filename) {
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        vec![]
-    }
+/// Load players from file
+fn load_players(filename: &str) -> Result<Vec<Player>,AppError> {
+    let data = fs::read_to_string(filename)?;
+    let list : Vec<Player> = serde_json::from_str(&data)?;
+    Ok(list)
 }
 
-fn save_teams(selections: &[Player], filename: &str) {
-    let serialized = serde_json::to_string(selections).unwrap();
-    fs::write(filename, serialized).unwrap();
+/// Save the last selected teams to a file, for future usage.
+fn save_teams(selections: &[Player], filename: &str) -> Result<(), AppError> {
+    let serialized = serde_json::to_string(selections)?;
+    fs::write(filename, serialized)?;
+    Ok(())
 }
 
-fn load_teams(filename: &str) -> Vec<Player> {
-    if let Ok(data) = fs::read_to_string(filename) {
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        vec![]
-    }
+/// Load last used list of teams
+fn load_teams(filename: &str) -> Result<Vec<Player>, AppError> {
+    let data = fs::read_to_string(filename)?;
+    Ok(serde_json::from_str(&data).unwrap_or_default())
 }
 
+/// Balance teams based on the criteria
 fn balance_teams(
     players: &[Player],
     number_of_teams: usize,
@@ -104,19 +104,16 @@ fn balance_teams(
         }
     }
 
-    // println!("Max diff goal: {},", solution.value(max_diff[0]));
-    // println!("Max diff zaga: {},", solution.value(max_diff[1]));
-    // println!("Max diff meio: {},", solution.value(max_diff[2]));
-    // println!("Max diff ataque: {},", solution.value(max_diff[3]));
-    // println!("Max diff speed: {},", solution.value(max_diff[4]));
-    // println!("Max diff stamina: {},", solution.value(max_diff[5]));
     teams
 }
 
-fn main() {
-    let players = load_players("players.json");
+fn main() -> Result<(), AppError> {
+    // TODO: Move to functional on the code is still imperative
+    // TODO: Add more docs
+
+    let players = load_players("players.json").expect("Error on loading avaialble players");
     let saved_selections_file = "selections.json";
-    let saved_selections = load_teams(saved_selections_file);
+    let saved_selections = load_teams(saved_selections_file).expect("Error load caced teams");
 
     // Read list of player names from stdin if available
     let mut stdin_input = String::new();
@@ -156,13 +153,13 @@ fn main() {
         .items(&players)
         .defaults(&defaults)
         .interact()
-        .unwrap();
+        .expect("Error selection players");
 
     let selected_items: Vec<Player> = selections
         .iter()
         .map(|&player_idx| players[player_idx].clone())
         .collect();
-    save_teams(&selected_items, saved_selections_file);
+    save_teams(&selected_items, saved_selections_file)?;
 
     let players_per_team = 5;
     let number_of_teams = selected_items.len() / players_per_team;
@@ -236,4 +233,6 @@ fn main() {
         }
         println!();
     }
+
+    Ok(())
 }
