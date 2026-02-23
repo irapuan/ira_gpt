@@ -37,6 +37,9 @@ impl Player {
             self.stamina,
         ]
     }
+    pub fn media_qualidade_jogador(&self) -> f32 {
+        (self.qualidade_goleiro+self.qualidade_zagueiro+self.qualidade_meio+self.qualidade_atacante+self.speed+self.stamina) as f32/6.0
+    }
 }
 
 pub enum Criteria {
@@ -84,12 +87,9 @@ pub fn rate_max(team: &Team, position: &Criteria) -> i32 {
     }
 }
 
-pub fn media_qualidade_jogador(jogador: &Player) -> f32 {
-    (jogador.qualidade_goleiro+jogador.qualidade_zagueiro+jogador.qualidade_meio+jogador.qualidade_atacante+jogador.speed+jogador.stamina) as f32/6.0
-}
 
 pub fn media_do_jogadores(time: &Team) -> f32 {
-    time.iter().map(media_qualidade_jogador).sum::<f32>() / time.len() as f32
+    time.iter().map(|player| player.media_qualidade_jogador()).sum::<f32>() / time.len() as f32
 }
 
 
