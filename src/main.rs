@@ -63,8 +63,8 @@ fn balance_teams(
     }
 
     for team_idx in 0..number_of_teams {
-        let team_size_constraint: Expression = (0..players.len())
-            .map(|player_idx| &team_allocation_variables[player_idx][team_idx])
+        let team_size_constraint: Expression = players.iter().enumerate()
+            .map(|(player_idx,_)| &team_allocation_variables[player_idx][team_idx])
             .sum::<Expression>();
         lp_problem = lp_problem.with(constraint!(team_size_constraint == players_per_team as i32));
     }
@@ -72,8 +72,8 @@ fn balance_teams(
     for criteria_idx in 1..CRITERIA {
         let team_scores: Vec<Expression> = (0..number_of_teams)
             .map(|team_idx| {
-                (0..players.len())
-                    .map(|player_idx| {
+                players.iter().enumerate()
+                    .map(|(player_idx,_)| {
                         players[player_idx].qualidades()[criteria_idx] as f64
                             * team_allocation_variables[player_idx][team_idx]
                     })
