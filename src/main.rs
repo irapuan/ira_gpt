@@ -3,9 +3,9 @@ use good_lp::*;
 use is_terminal::IsTerminal;
 use std::fs;
 use std::io::{self, Read};
-use IraGpt::app_error::AppError;
-use IraGpt::player::ListOfPlayers;
-use IraGpt::player::{self, Team};
+use ira_gpt::app_error::AppError;
+use ira_gpt::player::ListOfPlayers;
+use ira_gpt::player::{self, Team};
 
 /// Load players from file
 fn load_players_database(filename: &str) -> Result<ListOfPlayers, AppError> {
