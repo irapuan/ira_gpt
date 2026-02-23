@@ -1,21 +1,21 @@
-use IraGpt::app_error::AppError;
-use IraGpt::player::{self, Team};
-use IraGpt::player::ListOfPlayers;
 use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use good_lp::*;
 use is_terminal::IsTerminal;
 use std::fs;
 use std::io::{self, Read};
+use IraGpt::app_error::AppError;
+use IraGpt::player::ListOfPlayers;
+use IraGpt::player::{self, Team};
 
 /// Load players from file
-fn load_players(filename: &str) -> Result<ListOfPlayers, AppError> {
+fn load_players_database(filename: &str) -> Result<ListOfPlayers, AppError> {
     let data = fs::read_to_string(filename)?;
-    let list : Team = serde_json::from_str(&data)?;
+    let list: Team = serde_json::from_str(&data)?;
     Ok(list)
 }
 
 /// Save the last selected teams to a file, for future usage.
-fn save_teams(selections: &Team, filename: &str) -> Result<(), AppError> {
+fn save_cache(selections: &Team, filename: &str) -> Result<(), AppError> {
     let serialized = serde_json::to_string(selections)?;
     fs::write(filename, serialized)?;
     Ok(())
@@ -91,7 +91,6 @@ fn balance_teams(
                 max_diff[criteria_idx] >= avg_score.clone() - team_scores[team_idx].clone()
             ));
         }
-
     }
 
     let solution = lp_problem.solve()?;
@@ -107,7 +106,6 @@ fn balance_teams(
 
     Ok(teams)
 }
-
 
 fn print_results(balanced_teams: &Vec<Team>) {
     let colors = ["Preto", "Azul", "Amarelo", "Laranja"];
@@ -167,31 +165,22 @@ fn print_results(balanced_teams: &Vec<Team>) {
         println!();
     }
 }
-fn main() -> Result<(), AppError> {
-    // TODO: Move to functional on the code is still imperative
-    // TODO: Add more docs
 
-    let players = load_players("players.json")?;
-    let saved_selections_file = "selections.json";
+fn load_cache_or_stdin(
+    players: &Team,
+    saved_selections_file: &str,
+) -> Result<Vec<bool>, AppError> {
     let saved_selections = load_last_used_list_of_players(saved_selections_file)?;
-
-    // Read list of player names from stdin if available
     let mut stdin_input = String::new();
     if !io::stdin().is_terminal() {
         // Only read if stdin is piped (not interactive terminal)
-        io::stdin()
-            .read_to_string(&mut stdin_input)?;
+        io::stdin().read_to_string(&mut stdin_input)?;
     }
-
-    // Normalize and parse stdin list
     let stdin_players: Vec<String> = stdin_input
         .lines()
         .map(|line| line.trim().to_string())
         .filter(|line| !line.is_empty())
         .collect();
-
-    // Determine default selections:
-    // Priority: stdin list > previously saved selections
     let defaults: Vec<bool> = players
         .iter()
         .map(|player| {
@@ -202,18 +191,34 @@ fn main() -> Result<(), AppError> {
             }
         })
         .collect();
+    Ok(defaults)
+}
 
+fn select_players(
+    players: Vec<player::Player>,
+    defaults: Vec<bool>,
+) -> Result<Vec<player::Player>, AppError> {
     let selections = MultiSelect::with_theme(&ColorfulTheme::default())
         .with_prompt("Selecione os jogadores para formar os times")
         .items(&players)
         .defaults(&defaults)
         .interact()?;
-
     let selected_items: Team = selections
         .iter()
         .map(|&player_idx| players[player_idx].clone())
         .collect();
-    save_teams(&selected_items, saved_selections_file)?;
+    Ok(selected_items)
+}
+
+fn main() -> Result<(), AppError> {
+    // TODO: Add more docs
+
+    let players = load_players_database("players.json")?;
+    let saved_selections_file : &'static str = "selections.json";
+    let defaults = load_cache_or_stdin(&players, saved_selections_file)?;
+    let selected_items = select_players(players, defaults)?;
+
+    save_cache(&selected_items, saved_selections_file)?;
 
     let players_per_team = 5;
     let number_of_teams = selected_items.len() / players_per_team;
