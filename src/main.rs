@@ -1,11 +1,50 @@
-use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use good_lp::*;
 use is_terminal::IsTerminal;
+use skim::prelude::*;
+use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Read};
+use std::io::Cursor;
+use std::rc::Rc;
+use std::sync::Mutex;
 use ira_gpt::app_error::AppError;
 use ira_gpt::player::ListOfPlayers;
 use ira_gpt::player::{self, Team};
+
+#[derive(Debug)]
+struct OneShotPresetSelector {
+    preset: HashSet<String>,
+    selected_once: Mutex<HashSet<String>>,
+}
+
+impl OneShotPresetSelector {
+    fn new(preset: HashSet<String>) -> Self {
+        Self {
+            preset,
+            selected_once: Mutex::new(HashSet::new()),
+        }
+    }
+}
+
+impl Selector for OneShotPresetSelector {
+    fn should_select(&self, _index: usize, item: &dyn SkimItem) -> bool {
+        let item_name = item.text().to_string();
+        if !self.preset.contains(&item_name) {
+            return false;
+        }
+
+        let mut already_selected = self
+            .selected_once
+            .lock()
+            .expect("selector mutex poisoned");
+        if already_selected.contains(&item_name) {
+            false
+        } else {
+            already_selected.insert(item_name);
+            true
+        }
+    }
+}
 
 /// Load players from file
 fn load_players_database(filename: &str) -> Result<ListOfPlayers, AppError> {
@@ -149,7 +188,7 @@ fn print_results(balanced_teams: &Vec<Team>) {
             player::rate_average(team, &player::Criteria::Stamina),
             player::rate_max(team, &player::Criteria::Stamina)
         );
-        println!();
+       println!();
     }
     println!(
         "Diferença máxima total entre todos os crtitérios: {}",
@@ -198,15 +237,52 @@ fn select_players(
     players: Vec<player::Player>,
     defaults: Vec<bool>,
 ) -> Result<Vec<player::Player>, AppError> {
-    let selections = MultiSelect::with_theme(&ColorfulTheme::default())
-        .with_prompt("Selecione os jogadores para formar os times")
-        .items(&players)
-        .defaults(&defaults)
-        .interact()?;
-    let selected_items: Team = selections
+    let pre_selected_items: HashSet<String> = players
         .iter()
-        .map(|&player_idx| players[player_idx].clone())
+        .enumerate()
+        .filter(|(idx, _)| defaults.get(*idx).copied().unwrap_or(false))
+        .map(|(_, player)| player.name.clone())
         .collect();
+
+    let options = SkimOptionsBuilder::default()
+        .multi(true)
+        .prompt("Jogadores> ".to_string())
+        .header("TAB marca/desmarca | ENTER confirma | ESC cancela".to_string())
+        .selector(Rc::new(OneShotPresetSelector::new(pre_selected_items)) as Rc<dyn Selector>)
+        .build()
+        .map_err(|err| AppError::SelectionSetup(err.to_string()))?;
+
+    let input = players
+        .iter()
+        .map(|player| player.name.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let item_reader = SkimItemReader::default();
+    let items = item_reader.of_bufread(Cursor::new(input));
+
+    let output = Skim::run_with(options, Some(items))
+        .map_err(|err| AppError::SelectionSetup(err.to_string()))?;
+    if output.is_abort {
+        return Err(AppError::SelectionAborted);
+    }
+
+    let selected_names: HashSet<String> = output
+        .selected_items
+        .iter()
+        .map(|item| item.output().to_string())
+        .collect();
+
+    let selected_items: Team = players
+        .iter()
+        .enumerate()
+        .filter(|(_, player)| selected_names.contains(&player.name))
+        .map(|(_, player)| player.clone())
+        .collect();
+
+    if selected_items.is_empty() {
+        return Err(AppError::SelectionEmpty);
+    }
+
     Ok(selected_items)
 }
 
