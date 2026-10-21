@@ -16,7 +16,14 @@ pub type ListOfPlayers = Vec<Player>;
 
 impl std::fmt::Display for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "{}, Goleiro: {}, Zagueiro: {}, Meio: {}, Ataque: {}, Velocidade: {}, Stamina: {}",
+            self.name,
+            self.qualidade_goleiro,
+            self.qualidade_zagueiro,
+            self.qualidade_meio,
+            self.qualidade_atacante,
+            self.speed,
+            self.stamina)
     }
 }
 

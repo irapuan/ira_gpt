@@ -152,7 +152,7 @@ fn print_results(balanced_teams: &Vec<Team>) {
     for (i, team) in balanced_teams.iter().enumerate() {
         println!("Time {}:", colors[i % colors.len()]);
         for player in team {
-            println!("  {}", player.name);
+            println!("  {}", player);
         }
         println!(
             "Media de notas do time: {}",
@@ -300,7 +300,7 @@ fn main() -> Result<(), AppError> {
 
     println!("Players selected: {:?}", select_to_print);
 
-    let players_per_team = 5;
+    let players_per_team = 4;
     let number_of_teams = selected_items.len() / players_per_team;
     let balanced_teams = balance_teams(&selected_items, number_of_teams, players_per_team)?;
 
