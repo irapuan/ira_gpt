@@ -1,15 +1,15 @@
 use good_lp::*;
+use ira_gpt::app_error::AppError;
+use ira_gpt::player::ListOfPlayers;
+use ira_gpt::player::{self, Team};
 use is_terminal::IsTerminal;
 use skim::prelude::*;
 use std::collections::HashSet;
 use std::fs;
-use std::io::{self, Read};
 use std::io::Cursor;
+use std::io::{self, Read};
 use std::rc::Rc;
 use std::sync::Mutex;
-use ira_gpt::app_error::AppError;
-use ira_gpt::player::ListOfPlayers;
-use ira_gpt::player::{self, Team};
 
 #[derive(Debug)]
 struct OneShotPresetSelector {
@@ -33,10 +33,7 @@ impl Selector for OneShotPresetSelector {
             return false;
         }
 
-        let mut already_selected = self
-            .selected_once
-            .lock()
-            .expect("selector mutex poisoned");
+        let mut already_selected = self.selected_once.lock().expect("selector mutex poisoned");
         if already_selected.contains(&item_name) {
             false
         } else {
@@ -61,9 +58,9 @@ fn save_cache(selections: &Team, filename: &str) -> Result<(), AppError> {
 }
 
 /// Load last used list of players
-fn load_last_used_list_of_players(filename: &str) -> Result<ListOfPlayers, AppError> {
-    let data = fs::read_to_string(filename)?;
-    Ok(serde_json::from_str(&data).unwrap_or_default())
+fn load_last_used_list_of_players(filename: &str) -> Option<ListOfPlayers> {
+    let data = fs::read_to_string(filename).ok()?;
+    serde_json::from_str(&data).ok()
 }
 
 /// Balance teams based on the criteria
@@ -102,8 +99,10 @@ fn balance_teams(
     }
 
     for team_idx in 0..number_of_teams {
-        let team_size_constraint: Expression = players.iter().enumerate()
-            .map(|(player_idx,_)| &team_allocation_variables[player_idx][team_idx])
+        let team_size_constraint: Expression = players
+            .iter()
+            .enumerate()
+            .map(|(player_idx, _)| &team_allocation_variables[player_idx][team_idx])
             .sum::<Expression>();
         lp_problem = lp_problem.with(constraint!(team_size_constraint == players_per_team as i32));
     }
@@ -111,8 +110,10 @@ fn balance_teams(
     for criteria_idx in 1..CRITERIA {
         let team_scores: Vec<Expression> = (0..number_of_teams)
             .map(|team_idx| {
-                players.iter().enumerate()
-                    .map(|(player_idx,_)| {
+                players
+                    .iter()
+                    .enumerate()
+                    .map(|(player_idx, _)| {
                         players[player_idx].qualidades()[criteria_idx] as f64
                             * team_allocation_variables[player_idx][team_idx]
                     })
@@ -188,7 +189,7 @@ fn print_results(balanced_teams: &Vec<Team>) {
             player::rate_average(team, &player::Criteria::Stamina),
             player::rate_max(team, &player::Criteria::Stamina)
         );
-       println!();
+        println!();
     }
     println!(
         "Diferença máxima total entre todos os crtitérios: {}",
@@ -205,11 +206,8 @@ fn print_results(balanced_teams: &Vec<Team>) {
     }
 }
 
-fn load_cache_or_stdin(
-    players: &Team,
-    saved_selections_file: &str,
-) -> Result<Vec<bool>, AppError> {
-    let saved_selections = load_last_used_list_of_players(saved_selections_file)?;
+fn load_cache_or_stdin(players: &Team, saved_selections_file: &str) -> Result<Vec<bool>, AppError> {
+    let saved_selections = load_last_used_list_of_players(saved_selections_file);
     let mut stdin_input = String::new();
     if !io::stdin().is_terminal() {
         // Only read if stdin is piped (not interactive terminal)
@@ -225,8 +223,10 @@ fn load_cache_or_stdin(
         .map(|player| {
             if !stdin_players.is_empty() {
                 stdin_players.contains(&player.name)
+            } else if let Some(saved) = &saved_selections {
+                saved.contains(player)
             } else {
-                saved_selections.contains(player)
+                false
             }
         })
         .collect();
@@ -290,7 +290,7 @@ fn main() -> Result<(), AppError> {
     // TODO: Add more docs
 
     let players = load_players_database("players.json")?;
-    let saved_selections_file : &'static str = "selections.json";
+    let saved_selections_file: &'static str = "selections.json";
     let defaults = load_cache_or_stdin(&players, saved_selections_file)?;
     let selected_items = select_players(players, defaults)?;
 
